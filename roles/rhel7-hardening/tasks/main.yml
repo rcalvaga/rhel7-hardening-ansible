@@ -35,10 +35,10 @@
 
 - name: "SCORED | 5.2.8 | PATCH | Ensure SSH root login is disabled"
   lineinfile:
-  state: present
-  dest: /etc/ssh/sshd_config
-  regexp: '^PermitRootLogin'
-  line: 'PermitRootLogin no'
+    state: present
+    dest: /etc/ssh/sshd_config
+    regexp: '^PermitRootLogin'
+    line: 'PermitRootLogin no'
 
 - name: "SCORED | 6.2.16 | PATCH | Ensure no duplicate UIDs exist"
   copy:

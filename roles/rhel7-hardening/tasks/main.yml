@@ -389,7 +389,7 @@
     state: stopped
     enabled: no
   when:
-  - rlogin_service_status.stdout == "loaded
+  - rlogin_service_status.stdout == "loaded"
 
 - name: "SCORED | 2.2.17 | PATCH | Ensure rsh server is not enabled | rlogin"
   service:
@@ -397,7 +397,7 @@
     state: stopped
     enabled: no
   when:
-  - rsh_service_status.stdout == "loaded
+  - rsh_service_status.stdout == "loaded"
 
 # List users in order to look files inside each home directory
 - name: "PRELIM | List users accounts"

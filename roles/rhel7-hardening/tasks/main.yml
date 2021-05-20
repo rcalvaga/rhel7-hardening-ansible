@@ -2,10 +2,10 @@
 # tasks file for rhel7-hardening-ansible
 - name: "SCORED | 5.4.1.1 | PATCH | Ensure password expiration is 365 days or less"
   lineinfile:
-  state: present
-  dest: /etc/login.defs
-  regexp: '^PASS_MAX_DAYS'
-  line: 'PASS_MAX_DAYS 90'
+    state: present
+    dest: /etc/login.defs
+    regexp: '^PASS_MAX_DAYS'
+    line: 'PASS_MAX_DAYS 90'
 
 - name: "PRELIM | Gather accounts with empty password fields"
   shell: "cat /etc/shadow | awk -F: '($2 == \"\" ) {j++;print $1; } END {exit j}'"

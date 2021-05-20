@@ -382,6 +382,8 @@
     name: rlogin.socket
     state: stopped
     enabled: no
+  when:
+  - rsh_service_status.stdout == "loaded
 
 # List users in order to look files inside each home directory
 - name: "PRELIM | List users accounts"

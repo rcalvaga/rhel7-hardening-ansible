@@ -29,9 +29,9 @@
 
 - name: Restrict Virtual Console Root Logins
   lineinfile:
-  dest: /etc/securetty
-  regexp: ^vc
-  state: absent
+    dest: /etc/securetty
+    regexp: ^vc
+    state: absent
 
 - name: "SCORED | 5.2.8 | PATCH | Ensure SSH root login is disabled"
   lineinfile:

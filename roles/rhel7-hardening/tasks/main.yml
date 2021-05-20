@@ -377,9 +377,23 @@
   changed_when: no
   check_mode: no
 
-- name: "SCORED | 2.2.17 | PATCH | Ensure rsh server is not enabled | rlogin"
+- name: "PRELIM | Check for rsh.socket service"
+  shell: "systemctl show rsh.socket | grep LoadState | cut -d = -f 2"
+  register: rsh_service_status
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 2.2.17 | PATCH | Ensure rlogin server is not enabled | rlogin"
   service:
     name: rlogin.socket
+    state: stopped
+    enabled: no
+  when:
+  - rlogin_service_status.stdout == "loaded
+
+- name: "SCORED | 2.2.17 | PATCH | Ensure rsh server is not enabled | rlogin"
+  service:
+    name: rsh.socket
     state: stopped
     enabled: no
   when:

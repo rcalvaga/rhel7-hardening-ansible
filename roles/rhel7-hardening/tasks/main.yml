@@ -1,0 +1,511 @@
+---
+# tasks file for rhel7-hardening-ansible
+- name: "SCORED | 5.4.1.1 | PATCH | Ensure password expiration is 365 days or less"
+  lineinfile:
+  state: present
+  dest: /etc/login.defs
+  regexp: '^PASS_MAX_DAYS'
+  line: 'PASS_MAX_DAYS 90'
+
+- name: "PRELIM | Gather accounts with empty password fields"
+  shell: "cat /etc/shadow | awk -F: '($2 == \"\" ) {j++;print $1; } END {exit j}'"
+  register: empty_password_accounts
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 6.2.1 | PATCH | Ensure password fields are not empty"
+  command: passwd -l {{ item }}
+  with_items: "{{ empty_password_accounts.stdout_lines }}"
+  when:
+  - empty_password_accounts is defined
+  - empty_password_accounts.rc
+
+- name: "SCORED | 5.4.1.2 | PATCH | Ensure minimum days between password changes is 1 or more"
+  lineinfile:
+  state: present
+  dest: /etc/login.defs
+  regexp: '^PASS_MIN_DAYS'
+  line: 'PASS_MIN_DAYS 1'
+
+- name: Restrict Virtual Console Root Logins
+  lineinfile:
+  dest: /etc/securetty
+  regexp: ^vc
+  state: absent
+
+- name: "SCORED | 5.2.8 | PATCH | Ensure SSH root login is disabled"
+  lineinfile:
+  state: present
+  dest: /etc/ssh/sshd_config
+  regexp: '^PermitRootLogin'
+  line: 'PermitRootLogin no'
+
+- name: "SCORED | 6.2.16 | PATCH | Ensure no duplicate UIDs exist"
+  copy:
+    src: 6.2.16.sh
+    dest: /opt/6.2.16.sh
+    owner: root
+    group: root
+    mode: 0700
+  changed_when: no
+
+
+- name: "SCORED | 6.2.16 | PATCH | Ensure no duplicate UIDs exist"
+  shell: /opt/6.2.16.sh
+  args:
+    executable: /bin/bash
+  register: duplicate_uids
+
+- name: "SCORED | 6.2.17 | PATCH | Ensure no duplicate GIDs exist"
+  copy:
+    src: 6.2.17.sh
+    dest: /opt/6.2.17.sh
+    owner: root
+    group: root
+    mode: 0700
+  changed_when: no
+
+- name: "SCORED | 6.2.17 | PATCH | Ensure no duplicate GIDs exist"
+  shell: /opt/6.2.17.sh
+  args:
+    executable: /bin/bash
+  no_log: yes
+  register: duplicate_gids
+
+- name: "PRELIM | Check for vsftpd service"
+  shell: "systemctl show vsftpd | grep LoadState | cut -d = -f 2"
+  register: vsftpd_service_status
+  changed_when: no
+  check_mode: no
+
+- name: "PRELIM | Check for tftp service"
+  shell: "systemctl show tftp | grep LoadState | cut -d = -f 2"
+  register: tftp_service_status
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 2.1.6 | PATCH | Ensure tftp server is not enabled"
+  stat:
+    path: /etc/xinetd.d/tftp
+  register: tftp_service
+
+- name: "SCORED | 2.1.6 | PATCH | Ensure tftp server is not enabled"
+  command: chkconfig tftp off
+  notify: restart xinetd
+  when:
+  - tftp_service.stat.exists
+
+- name: "SCORED | 2.2.9 | PATCH | Ensure FTP Server is not enabled"
+  service:
+    name: vsftpd
+    state: stopped
+    enabled: no
+  when:
+  - vsftpd_service_status.stdout == "loaded"
+
+- name: "SCORED | 2.2.19 | PATCH | Ensure tftp server is not enabled"
+  service:
+    name: tftp
+    state: stopped
+    enabled: no
+  when:
+  - tftp_service_status.stdout == "loaded"
+
+- name: Check that /var/log/messages exists
+  stat:
+    path: /var/log/messages
+  register: stat_result
+
+- name: Create the file, if it doesnt exist already
+  file:
+    path: /var/log/messages
+    state: touch
+  when: not stat_result.stat.exists
+
+- name: Check that /var/log/secure exists
+  stat:
+    path: /var/log/secure
+  register: stat_result
+
+- name: Create the file, if it doesnt exist already
+  file:
+    path: /var/log/secure
+    state: touch
+  when: not stat_result.stat.exists
+
+- name: Check that /etc/hosts.equiv doesn’t exists
+  stat:
+    path: /etc/hosts.equiv
+  register: stat_result
+
+- name: Delete the file, if it exists already
+  file:
+    path: /etc/hosts.equiv
+    state: absent
+  when: stat_result.stat.exists
+
+- name: "PRELIM | Check for xinetd service"
+  shell: "systemctl show xinetd | grep LoadState | cut -d = -f 2"
+  register: xinetd_service_status
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 2.1.1 | PATCH | Ensure chargen services are not enabled | chargen-dgram"
+  stat:
+    path: /etc/xinetd.d/chargen-dgram
+  register: chargen_dgram_service
+
+- name: "SCORED | 2.1.1 | PATCH | Ensure chargen services are not enabled | chargen-dgram"
+  command: chkconfig chargen-dgram off
+  notify: restart xinetd
+  when:
+  - chargen_dgram_service is defined
+  - chargen_dgram_service.stat.exists
+
+- name: "SCORED | 2.1.1 | PATCH | Ensure chargen services are not enabled | chargen-stream"
+  stat:
+    path: /etc/xinetd.d/chargen-stream
+  register: chargen_stream_service
+
+- name: "SCORED | 2.1.1 | PATCH | Ensure chargen services are not enabled | chargen-stream"
+  command: chkconfig chargen-stream off
+  notify: restart xinetd
+  when:
+  - chargen_stream_service is defined
+  - chargen_stream_service.stat.exists
+
+- name: "SCORED | 2.1.7 | PATCH | Ensure xnetd is not enabled"
+  service:
+    name: xinetd
+    state: stopped
+    enabled: no
+  when:
+  - xinetd_service_status.stdout == "loaded"
+
+- name: "PRELIM | Check for xinetd service"
+  shell: "systemctl show xinetd | grep LoadState | cut -d = -f 2"
+  register: xinetd_service_status
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 2.1.2 | PATCH | Ensure daytime services are not enabled | daytime-dgram"
+  stat:
+    path: /etc/xinetd.d/daytime-dgram
+  register: daytime_dgram_service
+
+- name: "SCORED | 2.1.2 | PATCH | Ensure daytime services are not enabled | daytime-dgram"
+  command: chkconfig daytime-dgram off
+  notify: restart xinetd
+  when:
+  - daytime_dgram_service is defined
+  - daytime_dgram_service.stat.exists
+
+- name: "SCORED | 2.1.2 | PATCH | Ensure daytime services are not enabled | daytime-stream"
+  stat:
+    path: /etc/xinetd.d/daytime-stream
+  register: daytime_stream_service
+
+- name: "SCORED | 2.1.2 | PATCH | Ensure daytime services are not enabled | daytime-stream"
+  command: chkconfig daytime-stream off
+  notify: restart xinetd
+  when:
+  - daytime_stream_service is defined
+  - daytime_stream_service.stat.exists
+
+- name: "SCORED | 2.1.7 | PATCH | Ensure xnetd is not enabled"
+  service:
+    name: xinetd
+    state: stopped
+    enabled: no
+  when:
+  - xinetd_service_status.stdout == "loaded"
+
+- name: "PRELIM | Check for xinetd service"
+  shell: "systemctl show xinetd | grep LoadState | cut -d = -f 2"
+  register: xinetd_service_status
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 2.1.3 | PATCH | Ensure discard services are not enabled | discard-dgram"
+  stat:
+    path: /etc/xinetd.d/discard-dgram
+  register: discard_dgram_service
+
+- name: "SCORED | 2.1.3 | PATCH | Ensure discard services are not enabled | discard-dgram"
+  command: chkconfig discard-dgram off
+  notify: restart xinetd
+  when:
+  - discard_dgram_service is defined
+  - discard_dgram_service.stat.exists
+
+- name: "SCORED | 2.1.3 | PATCH | Ensure discard services are not enabled | discard-stream"
+  stat:
+    path: /etc/xinetd.d/discard-stream
+  register: discard_stream_service
+
+- name: "SCORED | 2.1.3 | PATCH | Ensure discard services are not enabled | discard-stream"
+  command: chkconfig discard-stream off
+  notify: restart xinetd
+  when:
+  - discard_stream_service is defined
+  - discard_stream_service.stat.exists
+
+- name: "SCORED | 2.1.7 | PATCH | Ensure xnetd is not enabled"
+  service:
+    name: xinetd
+    state: stopped
+    enabled: no
+  when:
+  - xinetd_service_status.stdout == "loaded"
+
+- name: "PRELIM | Check for xinetd service"
+  shell: "systemctl show xinetd | grep LoadState | cut -d = -f 2"
+  register: xinetd_service_status
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 2.1.4 | PATCH | Ensure echo services are not enabled | echo-dgram"
+  stat:
+    path: /etc/xinetd.d/echo-dgram
+  register: echo_dgram_service
+
+- name: "SCORED | 2.1.4 | PATCH | Ensure echo services are not enabled | echo-dgram"
+  command: chkconfig echo-dgram off
+  notify: restart xinetd
+  when:
+  - echo_dgram_service is defined
+  - echo_dgram_service.stat.exists
+
+- name: "SCORED | 2.1.4 | PATCH | Ensure echo services are not enabled | echo-stream"
+  stat:
+    path: /etc/xinetd.d/echo-stream
+  register: echo_stream_service
+
+- name: "SCORED | 2.1.4 | PATCH | Ensure echo services are not enabled | echo-stream"
+  command: chkconfig echo-stream off
+  notify: restart xinetd
+  when:
+  - echo_stream_service is defined
+  - echo_stream_service.stat.exists
+
+- name: "SCORED | 2.1.7 | PATCH | Ensure xnetd is not enabled"
+  service:
+    name: xinetd
+    state: stopped
+  enabled: no
+  when:
+  - xinetd_service_status.stdout == "loaded"
+
+- name: "PRELIM | Check for xinetd service"
+  shell: "systemctl show xinetd | grep LoadState | cut -d = -f 2"
+  register: xinetd_service_status
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 2.1.6 | PATCH | Ensure tftp server is not enabled"
+  stat:
+    path: /etc/xinetd.d/tftp
+  register: tftp_service
+
+- name: "SCORED | 2.1.6 | PATCH | Ensure tftp server is not enabled"
+  command: chkconfig tftp off
+  notify: restart xinetd
+  when:
+  - tftp_service.stat.exists
+
+- name: "SCORED | 2.1.7 | PATCH | Ensure xnetd is not enabled"
+  service:
+    name: xinetd
+    state: stopped
+    enabled: no
+  when:
+  - xinetd_service_status.stdout == "loaded"
+
+- name: "SCORED | 3.2.8 | PATCH | Ensure TCP SYN Cookies is enabled"
+  sysctl:
+    name: net.ipv4.tcp_syncookies
+    value: 1
+    state: present
+    reload: yes
+    ignoreerrors: yes
+    sysctl_set: yes
+  notify:
+  - sysctl flush ipv4 route table
+
+- name: "SCORED | 3.2.5 | PATCH | Ensure broadcast ICMP requests are ignored"
+  sysctl:
+    name: net.ipv4.icmp_echo_ignore_broadcasts
+    value: 1
+    state: present
+    reload: yes
+    ignoreerrors: yes
+    sysctl_set: yes
+  notify:
+  - sysctl flush ipv4 route table
+
+- name: "SCORED | 3.2.2 | PATCH | Ensure ICMP redirects are not accepted"
+  sysctl:
+    name: '{{ item.name }}'
+    value: '{{ item.value }}'
+    sysctl_set: yes
+    state: present
+    reload: yes
+    ignoreerrors: yes
+  with_items:
+  - { name: net.ipv4.conf.all.accept_redirects, value: 0 }
+  - { name: net.ipv4.conf.default.accept_redirects, value: 0 }
+  notify:
+  - sysctl flush ipv4 route table
+
+- name: "PRELIM | Check for telnet service"
+  shell: "systemctl show telnet | grep LoadState | cut -d = -f 2"
+  register: telnet_service_status
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 2.2.18 | PATCH | Ensure telnet server is not enabled"
+  service:
+    name: telnet
+    state: stopped
+    enabled: no
+  when:
+  - telnet_service_status.stdout == "loaded"
+
+- name: "PRELIM | Check for rlogin.socket service"
+  shell: "systemctl show rlogin.socket | grep LoadState | cut -d = -f 2"
+  register: rlogin_service_status
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 2.2.17 | PATCH | Ensure rsh server is not enabled | rlogin"
+  service:
+    name: rlogin.socket
+    state: stopped
+    enabled: no
+
+# List users in order to look files inside each home directory
+- name: "PRELIM | List users accounts"
+  command: "awk -F: '{print $1}' /etc/passwd"
+  register: users
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 5.2.6 | PATCH | Ensure SSH IgnoreRhosts is enabled"
+  lineinfile:
+    state: present
+    dest: /etc/ssh/sshd_config
+    regexp: '^IgnoreRhosts'
+    line: 'IgnoreRhosts yes'
+
+- name: "SCORED | 6.2.14 | PATCH | Ensure no users have .rhosts files"
+  file:
+    state: absent
+    dest: "~{{ item }}/.rhosts"
+  with_items: "{{ users.stdout_lines }}"
+  no_log: yes
+
+# List users in order to look files inside each home directory
+- name: "PRELIM | List users accounts"
+  command: "awk -F: '{print $1}' /etc/passwd"
+  register: users
+  changed_when: no
+  check_mode: no
+
+- name: "SCORED | 6.2.12 | PATCH | Ensure no users have .netrc files"
+  file:
+    state: absent
+    dest: "~{{ item }}/.netrc"
+  with_items: "{{ users.stdout_lines }}"
+  no_log: yes
+
+- name: "SCORED | 6.2.13 | PATCH | Ensure users' .netrc files are not group or world accessible"
+  copy:
+    src: 6.2.13.sh
+    dest: /opt/6.2.13.sh
+    owner: root
+    group: root
+    mode: 0700
+  changed_when: no
+
+- name: "SCORED | 6.2.13 | PATCH | Ensure users' .netrc files are not group or world accessible"
+  shell: /opt/6.2.13.sh
+  args:
+    executable: /bin/bash
+  register: dot_netrc_files
+  no_log: yes
+
+- name: "Ensure permissions on / are configured"
+  file:
+    path: /
+    state: directory
+    recursive: no
+    owner: root
+    group: root
+    mode: 0555
+
+- name: "Ensure permissions on /usr are configured"
+  file:
+    path: /usr
+    state: directory
+    recursive: no
+    owner: root
+    group: root
+    mode: 0755
+
+- name: "Ensure permissions on /etc are configured"
+  file:
+    path: /etc
+    state: directory
+    recursive: no
+    owner: root
+    group: root
+    mode: 0755
+
+- name: "Ensure permissions on /etc/security/opasswd are configured"
+  file:
+    path: /etc/security/opasswd
+    state: file
+    owner: root
+    group: root
+    mode: 0600
+
+- name: "Ensure permissions on /etc/shadow are configured"
+  file:
+    path: /etc/shadow
+    state: file
+    owner: root
+    group: root
+    mode: 0000
+
+- name: "Ensure permissions on /var are configured"
+  file:
+    path: /var
+    state: directory
+    recursive: no
+    owner: root
+    group: root
+    mode: 0755
+
+- name: "Ensure permissions on /var/log/messages are configured"
+  file:
+    path: /var/log/messages
+    state: file
+    owner: root
+    group: root
+    mode: 0600
+
+- name: "Ensure permissions on /var/log/wtmp are configured"
+  file:
+    path: /var/log/wtmp
+    state: file
+    owner: root
+    group: root
+    mode: 0664
+
+- name: "Ensure permissions on /var/log/secure are configured"
+  file:
+    path: /var/log/secure
+    state: file
+    owner: root
+    group: root
+    mode: 0600

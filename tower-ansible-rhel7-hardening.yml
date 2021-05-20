@@ -1,0 +1,5 @@
+- name: RHEL7 Hardening
+  hosts: all
+  gather_facts: True
+  roles:
+   - rhel7-hardening

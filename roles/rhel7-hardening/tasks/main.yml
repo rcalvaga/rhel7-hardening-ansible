@@ -454,7 +454,7 @@
   file:
     path: /
     state: directory
-    recursive: no
+    recurse: no
     owner: root
     group: root
     mode: 0555
@@ -463,7 +463,7 @@
   file:
     path: /usr
     state: directory
-    recursive: no
+    recurse: no
     owner: root
     group: root
     mode: 0755
@@ -472,7 +472,7 @@
   file:
     path: /etc
     state: directory
-    recursive: no
+    recurse: no
     owner: root
     group: root
     mode: 0755
@@ -497,7 +497,7 @@
   file:
     path: /var
     state: directory
-    recursive: no
+    recurse: no
     owner: root
     group: root
     mode: 0755

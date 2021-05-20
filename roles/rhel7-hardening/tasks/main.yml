@@ -292,7 +292,7 @@
   service:
     name: xinetd
     state: stopped
-  enabled: no
+    enabled: no
   when:
   - xinetd_service_status.stdout == "loaded"
 
